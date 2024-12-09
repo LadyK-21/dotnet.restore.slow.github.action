@@ -1,6 +1,7 @@
 name: DotNet
 
 on:
+  workflow_dispatch:
   pull_request:
     branches: [main]
   push:
@@ -19,27 +20,70 @@ jobs:
     name: Test
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-2019, windows-2022]
+        os: [ubuntu-latest, macos-latest]
         cache: [true, false]
+        include:
+          - os: windows-2019
+            cache: false
+            DOTNET_INSTALL_DIR: D:\dotnet
+          - os: windows-2022
+            cache: false
+            DOTNET_INSTALL_DIR: D:\dotnet
+          - os: windows-2019
+            cache: true
+            DOTNET_INSTALL_DIR: D:\dotnet
+          - os: windows-2022
+            cache: true
+            DOTNET_INSTALL_DIR: D:\dotnet
+          - os: windows-2019
+            cache: false
+            DOTNET_INSTALL_DIR: ''
+          - os: windows-2022
+            cache: false
+            DOTNET_INSTALL_DIR: ''
+          - os: windows-2019
+            cache: true
+            DOTNET_INSTALL_DIR: ''
+          - os: windows-2022
+            cache: true
+            DOTNET_INSTALL_DIR: ''
       fail-fast: false
     steps:
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Set Windows Environment Variables
+        if: ${{ startsWith(matrix.os, 'windows') && matrix.DOTNET_INSTALL_DIR != '' }}
+        shell: pwsh
+        run: |
+          echo "DOTNET_INSTALL_DIR=${{ matrix.DOTNET_INSTALL_DIR }}" >> $ENV:GITHUB_ENV
+          echo "NUGET_PACKAGES=D:\nuget\packages" >> $ENV:GITHUB_ENV
+
+      - name: Print matrix values
+        run: |
+          echo "OS: ${{ matrix.os }}"
+          echo "Cache: ${{ matrix.cache }}"
+          echo "DOTNET_INSTALL_DIR: ${{ matrix.DOTNET_INSTALL_DIR }}"
+          echo "NUGET_PACKAGES: ${{ env.NUGET_PACKAGES }}"
+
       - name: Cache NuGet packages
         if: matrix.cache
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}/.nuget/packages
+          path: ${{ env.NUGET_PACKAGES }}
           key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
           restore-keys: ${{ runner.os }}-nuget-
 
-      - name: Setup DotNet 6
-        uses: jetersen/setup-dotnet@fix/usePwsh
+      - name: Setup DotNet 8
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 6.0.x
+          dotnet-version: 8.0.x
+          dotnet-quality: 'preview'
 
       - name: DotNet restore
         run: |
